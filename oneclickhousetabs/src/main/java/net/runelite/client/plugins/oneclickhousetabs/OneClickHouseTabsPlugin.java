@@ -1,4 +1,4 @@
-package net.runelite.client.plugins.oneclickamethyst;
+package net.runelite.client.plugins.oneclickhousetabs;
 
 import javax.inject.Inject;
 
@@ -6,10 +6,10 @@ import com.google.inject.Provides;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.*;
 import net.runelite.api.events.ClientTick;
+import net.runelite.api.events.GameTick;
 import net.runelite.api.events.MenuOptionClicked;
 import net.runelite.api.queries.GameObjectQuery;
-import net.runelite.api.queries.PlayerQuery;
-import net.runelite.api.queries.WallObjectQuery;
+import net.runelite.api.queries.NPCQuery;
 import net.runelite.api.widgets.Widget;
 import net.runelite.api.widgets.WidgetInfo;
 import net.runelite.client.config.ConfigManager;
@@ -19,249 +19,86 @@ import net.runelite.client.plugins.PluginDescriptor;
 import org.pf4j.Extension;
 
 import java.util.*;
-import java.util.stream.Collectors;
 
 @Extension
 @PluginDescriptor(
-        name = "One Click Amethyst",
+        name = "One Click House Tabs",
         enabledByDefault = false,
-        description = "Mines and chisels Amethyst. If no chisel in invent it will bank instead."
+        description = "Makes House tabs and unnotes at phial."
 )
 @Slf4j
-public class OneClickAmethystPlugin extends Plugin
-{
-    Set<Integer> GEMS = Set.of(1623,1621,1619,1617);
-    Set<Integer> MINING_ANIMATION = Set.of(6752,6758,8344,4481,7282,8345);
-    private boolean CHISELING = false;
+public class OneClickHouseTabsPlugin extends Plugin {
+    private int timeout;
 
     @Inject
     private Client client;
 
-    @Inject
-    private OneClickAmethystConfig config;
+    @Subscribe
+    public void onGameTick(GameTick event)
+    {
+        if (timeout>0) timeout--;
+        if (client.getLocalPlayer()!=null && client.getLocalPlayer().getAnimation()==4067) timeout = 6;
+        if (getInventoryItem(ItemID.SOFT_CLAY)==null) timeout = 0;
+    }
 
     @Subscribe
     public void onMenuOptionClicked(MenuOptionClicked event) throws InterruptedException {
-        if (event.getMenuOption().equals("<col=00ff00>One Click Amethyst"))
+        if (event.getMenuOption().equals("<col=00ff00>One Click House Tabs"))
             handleClick(event);
-    }
-
-    @Provides
-    OneClickAmethystConfig provideConfig(ConfigManager configManager)
-    {
-        return configManager.getConfig(OneClickAmethystConfig.class);
     }
 
     @Subscribe
     private void onClientTick(ClientTick event) {
-        String text;
-        if (this.client.getLocalPlayer() == null || this.client.getGameState() != GameState.LOGGED_IN)
-            return;
-        text = "<col=00ff00>One Click Amethyst";
-        this.client.insertMenuItem(text, "", MenuAction.UNKNOWN
-                .getId(), 0, 0, 0, true);
+        if (this.client.getLocalPlayer() == null || this.client.getGameState() != GameState.LOGGED_IN) return;
+        String text = "<col=00ff00>One Click House Tabs";
+        this.client.insertMenuItem(text, "", MenuAction.UNKNOWN.getId(), 0, 0, 0, true);
+        client.setTempMenuEntry(Arrays.stream(client.getMenuEntries()).filter(x->x.getOption().equals(text)).findFirst().orElse(null));
     }
 
-    private void handleClick(MenuOptionClicked event) throws InterruptedException {
-        if (getInventoryItem(ItemID.AMETHYST)==null)
-        {
-            System.out.println("1");
-            CHISELING=false;
-        }
-        if (CHISELING)
-        {
-            System.out.println("2");
-            event.consume();
-            return;
-        }
-        System.out.println("3");
-        if(client.getLocalPlayer().isMoving() ||client.getLocalPlayer().getPoseAnimation()
-                != client.getLocalPlayer().getIdlePoseAnimation())
-        {
-            event.consume();
-        }
-        System.out.println("4");
-
-        if(MINING_ANIMATION.contains(client.getLocalPlayer().getAnimation()))
+    private void handleClick(MenuOptionClicked event) {
+        if (timeout>0)
         {
             event.consume();
             return;
         }
-        System.out.println("5");
-
-        if(config.dropGems() && !bankOpen())
+        if((client.getLocalPlayer()!=null && client.getLocalPlayer().isMoving() || client.getLocalPlayer().getPoseAnimation() != client.getLocalPlayer().getIdlePoseAnimation())
+            && client.getWidget(219,1)==null)
         {
-            for (int gem:GEMS)
+            event.consume();
+            return;
+        }
+
+        if (inPOH())
+        {
+            if (tabMenuOpen())
             {
-                if (getInventoryItem(gem)!=null)
-                {
-                    event.setMenuEntry(dropGemMES(getInventoryItem(gem)));
-                    return;
-                }
-            }
-        }
-
-        if(config.useSpec() && !bankOpen()) {
-            if (client.getVar(VarPlayer.SPECIAL_ATTACK_PERCENT) == 1000) {
-                event.setMenuEntry(specAtk());
+                event.setMenuEntry(createTabsMES());
                 return;
             }
-        }
 
-        if (getEmptySlots()>0)
-        {
-            event.setMenuEntry(mineAmethyst());
+            if (getInventoryItem(ItemID.SOFT_CLAY)!=null && clickLecternMES()!=null)
+            {
+                event.setMenuEntry(clickLecternMES());
+                return;
+            }
+            event.setMenuEntry(leavePOHMES());
             return;
         }
-        System.out.println("6");
-
-        if (bankOpen())
+        if (getInventoryItem(ItemID.SOFT_CLAY)!=null && enterPOHMES()!=null)
         {
-            event.setMenuEntry(depositAllMES());
+            event.setMenuEntry(enterPOHMES());
             return;
         }
-
-        if (getInventoryItem(ItemID.CHISEL)==null)
+        if (client.getWidget(219,1)!=null
+                && client.getWidget(219,1).getChild(3)!=null)
         {
-            event.setMenuEntry(bankMES());
+            event.setMenuEntry(exchangeAllMES());
             return;
         }
-
-        if (client.getWidget(270,5)!=null)
+        if (getInventoryItem(1762)!=null && useNotedClayOnPhialsMES()!=null && getInventoryItem(ItemID.SOFT_CLAY)==null)
         {
-            event.setMenuEntry(chooseProductMenuEntry());
-            CHISELING = true;
-            return;
+            event.setMenuEntry(useNotedClayOnPhialsMES());
         }
-        System.out.println("7");
-        event.setMenuEntry(useChiselOnAmethystMenuEntry());
-    }
-
-
-    private Point getLocation(WallObject wallObject) {
-        return new Point(wallObject.getLocalLocation().getSceneX(),
-                wallObject.getLocalLocation().getSceneY());
-    }
-
-    private WallObject getAmethystVein()
-    {
-        List<Integer> Ids= Arrays.asList(11388,11389);
-        List<Player> players = new PlayerQuery()
-                .result(client)
-                .list;
-        players.remove(client.getLocalPlayer()); //exempt own player else you move to diff rock if beside one
-
-        List<WallObject> wallObjects = new WallObjectQuery()
-                .idEquals(Ids)
-                .result(client)
-                .stream()
-                .filter(wallObject -> players.stream().noneMatch(p -> p.getWorldLocation().distanceTo(wallObject.getWorldLocation())<2))
-                .collect(Collectors.toList());
-
-        return wallObjects.stream()
-                .min(Comparator.comparing(entityType -> entityType.getLocalLocation().distanceTo(client.getLocalPlayer().getLocalLocation())))
-                .orElse(null);
-    }
-
-    private MenuEntry mineAmethyst() {
-        WallObject customWallObject = getAmethystVein();
-        return createMenuEntry(
-                customWallObject.getId(),
-                MenuAction.GAME_OBJECT_FIRST_OPTION,
-                getLocation(customWallObject).getX(),
-                getLocation(customWallObject).getY(), true);
-    }
-
-    private MenuEntry dropGemMES(Widget gem){
-        return createMenuEntry(
-                7,
-                MenuAction.CC_OP_LOW_PRIORITY,
-                gem.getIndex(),
-                WidgetInfo.INVENTORY.getId(),
-                false);
-    }
-
-    private MenuEntry specAtk(){
-        Widget specAtk = client.getWidget(WidgetInfo.MINIMAP_SPEC_CLICKBOX);
-        return createMenuEntry(
-                1,
-                MenuAction.CC_OP,
-                -1,
-                specAtk.getId(),
-                false);
-    }
-
-    private MenuEntry useChiselOnAmethystMenuEntry()
-    {
-        client.setSelectedSpellWidget(WidgetInfo.INVENTORY.getId());
-        client.setSelectedSpellChildIndex(getInventoryItem(ItemID.CHISEL).getIndex());
-        client.setSelectedSpellItemId(ItemID.CHISEL);
-        return createMenuEntry(
-                0,
-                MenuAction.WIDGET_TARGET_ON_WIDGET,
-                getInventoryItem(ItemID.AMETHYST).getIndex(),
-                9764864,
-                true);
-    }
-
-    private MenuEntry chooseProductMenuEntry(){
-        int ID = 17694737;
-        if (config.getProduct()==Product.BOLTS)
-        {
-            ID = 17694734;
-        }
-        if (config.getProduct()==Product.JAVELIN)
-        {
-            ID = 17694736;
-        }
-        if (config.getProduct()==Product.ARROWTIPS)
-        {
-            ID = 17694735;
-        }
-        return createMenuEntry(
-                1,
-                MenuAction.CC_OP,
-                -1,
-                ID,
-                true);
-    }
-
-    private MenuEntry bankMES(){
-        return createMenuEntry(
-                4483,
-                MenuAction.GAME_OBJECT_FIRST_OPTION,
-                getLocation(getGameObject(4483)).getX(),
-                getLocation(getGameObject(4483)).getY(),
-                false);
-    }
-
-    private MenuEntry depositAllMES(){
-        return createMenuEntry(
-                1,
-                MenuAction.CC_OP,
-                -1,
-                WidgetInfo.BANK_DEPOSIT_INVENTORY.getId(),
-                false);
-    }
-
-    private int getEmptySlots() {
-        Widget inventory = client.getWidget(WidgetInfo.INVENTORY.getId());
-        Widget bankInventory = client.getWidget(WidgetInfo.BANK_INVENTORY_ITEMS_CONTAINER.getId());
-
-        if (inventory!=null && !inventory.isHidden()
-                && inventory.getDynamicChildren()!=null)
-        {
-            List<Widget> inventoryItems = Arrays.asList(client.getWidget(WidgetInfo.INVENTORY.getId()).getDynamicChildren());
-            return (int) inventoryItems.stream().filter(item -> item.getItemId() == 6512).count();
-        }
-
-        if (bankInventory!=null && !bankInventory.isHidden()
-                && bankInventory.getDynamicChildren()!=null)
-        {
-            List<Widget> inventoryItems = Arrays.asList(client.getWidget(WidgetInfo.BANK_INVENTORY_ITEMS_CONTAINER.getId()).getDynamicChildren());
-            return (int) inventoryItems.stream().filter(item -> item.getItemId() == 6512).count();
-        }
-        return -1;
     }
 
     private Widget getInventoryItem(int id) {
@@ -288,11 +125,6 @@ public class OneClickAmethystPlugin extends Plugin
         }
         return null;
     }
-
-    private boolean bankOpen() {
-        return client.getItemContainer(InventoryID.BANK) != null;
-    }
-
     private Point getLocation(TileObject tileObject) {
         if (tileObject == null) {
             return new Point(0, 0);
@@ -303,11 +135,67 @@ public class OneClickAmethystPlugin extends Plugin
         return new Point(tileObject.getLocalLocation().getSceneX(), tileObject.getLocalLocation().getSceneY());
     }
 
+    private Point getLocation(NPC npc)
+    {
+        return new Point(npc.getLocalLocation().getSceneX(),npc.getLocalLocation().getSceneY());
+    }
+
     private GameObject getGameObject(int ID) {
         return new GameObjectQuery()
                 .idEquals(ID)
                 .result(client)
                 .nearestTo(client.getLocalPlayer());
+    }
+
+    private NPC getNpc(int... id)
+    {
+        return new NPCQuery()
+                .idEquals(id)
+                .result(client)
+                .nearestTo(client.getLocalPlayer());
+    }
+
+    private boolean inPOH() {
+        return getGameObject(ObjectID.PORTAL_4525)!=null;
+    }
+
+    private boolean tabMenuOpen() {
+        return client.getWidget(79,15)!=null;
+    }
+
+    private MenuEntry useNotedClayOnPhialsMES() {
+        int SOFT_CLAY = 1762;
+        client.setSelectedSpellWidget(WidgetInfo.INVENTORY.getId());
+        client.setSelectedSpellChildIndex(getInventoryItem(SOFT_CLAY).getIndex());
+        client.setSelectedSpellItemId(SOFT_CLAY);
+        NPC phials = getNpc(NpcID.PHIALS);
+        if (phials == null) return null;
+        return createMenuEntry(phials.getIndex(), MenuAction.WIDGET_TARGET_ON_NPC, getLocation(phials).getX(), getLocation(phials).getY(), false);
+    }
+
+    private MenuEntry exchangeAllMES() {
+        return createMenuEntry(0, MenuAction.WIDGET_CONTINUE, 3, WidgetInfo.DIALOG_OPTION_OPTION1.getId(), false);
+    }
+
+    private MenuEntry enterPOHMES() {
+        GameObject housePortal = getGameObject(ObjectID.PORTAL_15478);
+        if (housePortal== null) return null;
+        return createMenuEntry(housePortal.getId(), MenuAction.GAME_OBJECT_SECOND_OPTION, getLocation(housePortal).getX(), getLocation(housePortal).getY(), false);
+    }
+
+    private MenuEntry clickLecternMES() {
+        GameObject lectern = getGameObject(ObjectID.LECTERN_37349);
+        if (lectern== null) return null;
+        return createMenuEntry(lectern.getId(), MenuAction.GAME_OBJECT_FIRST_OPTION, getLocation(lectern).getX(), getLocation(lectern).getY(), false);
+    }
+
+    private MenuEntry createTabsMES() {
+        return createMenuEntry(1, MenuAction.CC_OP, -1, 5177359, false);
+    }
+
+    private MenuEntry leavePOHMES() {
+        GameObject portal = getGameObject(ObjectID.PORTAL_4525);
+        return createMenuEntry(portal.getId(),MenuAction.GAME_OBJECT_FIRST_OPTION, getLocation(portal).getX(), getLocation(portal).getY(), false);
     }
 
     public MenuEntry createMenuEntry(int identifier, MenuAction type, int param0, int param1, boolean forceLeftClick) {
