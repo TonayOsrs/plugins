@@ -37,7 +37,11 @@ public class OneClickHouseTabsPlugin extends Plugin {
     public void onGameTick(GameTick event)
     {
         if (timeout>0) timeout--;
-        if (client.getLocalPlayer()!=null && client.getLocalPlayer().getAnimation()==4067) timeout = 6;
+        if (client.getLocalPlayer()!=null &&
+                (client.getLocalPlayer().getAnimation()==4067 || client.getLocalPlayer().getAnimation()==4068))
+        {
+            timeout = 6;
+        }
         if (getInventoryItem(ItemID.SOFT_CLAY)==null) timeout = 0;
     }
 
@@ -56,6 +60,11 @@ public class OneClickHouseTabsPlugin extends Plugin {
     }
 
     private void handleClick(MenuOptionClicked event) {
+        if (client.getLocalPlayer().getAnimation()==8491 && !tabMenuOpen())
+        {
+            event.consume();
+            return;
+        }
         if (timeout>0)
         {
             event.consume();
