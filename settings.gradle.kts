@@ -23,29 +23,23 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-rootProject.name = "Kitsch Plugins"
+rootProject.name = "Tony Plugins"
 
-include(":birdhouseinfobox")
-include(":coxraidscouter")
-include(":objecthider")
+
 include(":oneclickamethyst")
 include(":oneclickanglerfish")
 include(":oneclickblastfurnace")
 include(":oneclickbloods")
 include(":oneclickbloodsmorytania")
 include(":oneclickchins")
-include(":oneclickcorpspec")
 include(":oneclickcustom")
 include(":oneclickglassblowing")
 include(":oneclickkarambwans")
 include(":oneclickmortmyrefungus")
 include(":oneclicksandstone")
 include(":oneclickteaks")
-include(":oneclicktelegrab")
-include(":oneclickaerialfishing")
 include(":oneclickzmi")
-include(":scheduledlogout")
-include(":tabswitcher")
+
 
 for (project in rootProject.children) {
     project.apply {
