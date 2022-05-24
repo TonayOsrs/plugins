@@ -42,9 +42,9 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Map;
 
-@Extension
+//@Extension
 @PluginDescriptor(
-        name = "One Click Chinchompas",
+        name = "One Click Chins",
         enabledByDefault = false,
         description = "one click chinchompas. Requires you to lay the traps initially(WHILE PLUGIN IS ON) as it only resets.")
 @Slf4j
